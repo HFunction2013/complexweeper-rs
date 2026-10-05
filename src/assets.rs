@@ -41,7 +41,10 @@ impl Atlas {
         if w != aj.width || h != aj.height {
             return Err(anyhow!(
                 "Atlas dimensions mismatch: JSON says {}x{}, PNG is {}x{}",
-                aj.width, aj.height, w, h
+                aj.width,
+                aj.height,
+                w,
+                h
             ));
         }
         let mut slots = HashMap::new();

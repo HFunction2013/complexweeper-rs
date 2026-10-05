@@ -177,11 +177,7 @@ pub struct App {
 
 impl App {
     pub fn new(atlas: Atlas) -> Self {
-        let texture = Texture2D::from_rgba8(
-            atlas.width as u16,
-            atlas.height as u16,
-            &atlas.pixels,
-        );
+        let texture = Texture2D::from_rgba8(atlas.width as u16, atlas.height as u16, &atlas.pixels);
         // Default to Expert preset, Complex mode.
         let mut game = Game::new(GameMode::Complex);
         game.w = PRESETS[2].w;
@@ -355,12 +351,7 @@ impl App {
                 y,
                 WHITE,
                 DrawTextureParams {
-                    source: Some(Rect::new(
-                        s.x as f32,
-                        s.y as f32,
-                        s.w as f32,
-                        s.h as f32,
-                    )),
+                    source: Some(Rect::new(s.x as f32, s.y as f32, s.w as f32, s.h as f32)),
                     dest_size: Some(Vec2::new(dw, dh)),
                     ..Default::default()
                 },
@@ -410,7 +401,11 @@ impl App {
             return "face_down";
         }
         if self.game.over {
-            return if self.game.win { "face_win" } else { "face_dead" };
+            return if self.game.win {
+                "face_win"
+            } else {
+                "face_dead"
+            };
         }
         if self.board_held() {
             return "face_scan";
@@ -1022,7 +1017,13 @@ impl App {
         let dy = (self.win_h - dh) / 2.0;
 
         // Dim background
-        draw_rectangle(0.0, 0.0, self.win_w, self.win_h, Color::new(0.0, 0.0, 0.0, 0.3));
+        draw_rectangle(
+            0.0,
+            0.0,
+            self.win_w,
+            self.win_h,
+            Color::new(0.0, 0.0, 0.0, 0.3),
+        );
         // Dialog box
         draw_rectangle(dx, dy, dw, dh, C_WHITE);
         draw_rectangle_lines(dx, dy, dw, dh, 2.0, C_SHADOW);
@@ -1039,9 +1040,34 @@ impl App {
             draw_text(label, dx + 14.0, y + 16.0, 14.0, C_BLACK);
             let fx = dx + 100.0;
             let focused = self.custom.focused_field == *idx;
-            draw_rectangle(fx, y, 70.0, 22.0, if focused { Color::new(0.9, 0.95, 1.0, 1.0) } else { C_WHITE });
-            draw_rectangle_lines(fx, y, 70.0, 22.0, 1.0, if focused { Color::new(0.0, 0.3, 0.8, 1.0) } else { C_SHADOW });
-            let val = if *idx == 0 { self.custom.h } else { self.custom.w };
+            draw_rectangle(
+                fx,
+                y,
+                70.0,
+                22.0,
+                if focused {
+                    Color::new(0.9, 0.95, 1.0, 1.0)
+                } else {
+                    C_WHITE
+                },
+            );
+            draw_rectangle_lines(
+                fx,
+                y,
+                70.0,
+                22.0,
+                1.0,
+                if focused {
+                    Color::new(0.0, 0.3, 0.8, 1.0)
+                } else {
+                    C_SHADOW
+                },
+            );
+            let val = if *idx == 0 {
+                self.custom.h
+            } else {
+                self.custom.w
+            };
             draw_text(val.to_string(), fx + 6.0, y + 16.0, 14.0, C_BLACK);
             draw_text(hint, dx + 180.0, y + 16.0, 12.0, C_DARKGRAY);
             y += 30.0;
@@ -1057,9 +1083,36 @@ impl App {
             draw_text(type_label, dx + 14.0 + col, yy + 16.0, 14.0, C_BLACK);
             let fx = dx + 82.0 + col;
             let focused = self.custom.focused_field == idx;
-            draw_rectangle(fx, yy, 62.0, 22.0, if focused { Color::new(0.9, 0.95, 1.0, 1.0) } else { C_WHITE });
-            draw_rectangle_lines(fx, yy, 62.0, 22.0, 1.0, if focused { Color::new(0.0, 0.3, 0.8, 1.0) } else { C_SHADOW });
-            draw_text(self.custom.t[k + 1].to_string(), fx + 6.0, yy + 16.0, 14.0, C_BLACK);
+            draw_rectangle(
+                fx,
+                yy,
+                62.0,
+                22.0,
+                if focused {
+                    Color::new(0.9, 0.95, 1.0, 1.0)
+                } else {
+                    C_WHITE
+                },
+            );
+            draw_rectangle_lines(
+                fx,
+                yy,
+                62.0,
+                22.0,
+                1.0,
+                if focused {
+                    Color::new(0.0, 0.3, 0.8, 1.0)
+                } else {
+                    C_SHADOW
+                },
+            );
+            draw_text(
+                self.custom.t[k + 1].to_string(),
+                fx + 6.0,
+                yy + 16.0,
+                14.0,
+                C_BLACK,
+            );
         }
         y += 66.0;
 
@@ -1071,7 +1124,13 @@ impl App {
 
         // Error text
         if !self.custom.err.is_empty() {
-            draw_text(self.custom.err, dx + 134.0, y + 17.0, 12.0, Color::new(0.8, 0.0, 0.0, 1.0));
+            draw_text(
+                self.custom.err,
+                dx + 134.0,
+                y + 17.0,
+                12.0,
+                Color::new(0.8, 0.0, 0.0, 1.0),
+            );
         }
         y += 34.0;
 
@@ -1192,7 +1251,13 @@ impl App {
         let dx = (self.win_w - dw) / 2.0;
         let dy = (self.win_h - dh) / 2.0;
 
-        draw_rectangle(0.0, 0.0, self.win_w, self.win_h, Color::new(0.0, 0.0, 0.0, 0.3));
+        draw_rectangle(
+            0.0,
+            0.0,
+            self.win_w,
+            self.win_h,
+            Color::new(0.0, 0.0, 0.0, 0.3),
+        );
         draw_rectangle(dx, dy, dw, dh, C_WHITE);
         draw_rectangle_lines(dx, dy, dw, dh, 2.0, C_SHADOW);
         draw_rectangle(dx, dy, dw, 28.0, Color::new(0.0, 0.2, 0.6, 1.0));
@@ -1325,7 +1390,11 @@ impl App {
         }
         // Tab cycles focus
         if is_key_pressed(KeyCode::Tab) {
-            let max_field = if self.game.mode == GameMode::Classic { 2 } else { 6 };
+            let max_field = if self.game.mode == GameMode::Classic {
+                2
+            } else {
+                6
+            };
             self.custom.focused_field = (self.custom.focused_field + 1) % max_field;
             return;
         }
@@ -1497,7 +1566,11 @@ impl App {
                     MenuOpen::Help => App::help_menu_items(),
                     _ => vec![],
                 };
-                let x = if self.menu_open == MenuOpen::Game { 0.0 } else { help_x };
+                let x = if self.menu_open == MenuOpen::Game {
+                    0.0
+                } else {
+                    help_x
+                };
                 let idx = self.menu_item_at(x, &items, mx, my);
                 if idx >= 0 {
                     let (_, id, _) = items[idx as usize];
@@ -1514,7 +1587,11 @@ impl App {
                     MenuOpen::Help => App::help_menu_items(),
                     _ => vec![],
                 };
-                let x = if self.menu_open == MenuOpen::Game { 0.0 } else { help_x };
+                let x = if self.menu_open == MenuOpen::Game {
+                    0.0
+                } else {
+                    help_x
+                };
                 self.menu_hover = self.menu_item_at(x, &items, mx, my);
             }
         }
@@ -1535,15 +1612,12 @@ impl App {
                 self.chord_cell = c;
                 self.press_cell = -1;
             } else {
-                self.press_cell = if c >= 0
-                    && !on_face
-                    && !self.game.over
-                    && self.game.open[c as usize] == 0
-                {
-                    c
-                } else {
-                    -1
-                };
+                self.press_cell =
+                    if c >= 0 && !on_face && !self.game.over && self.game.open[c as usize] == 0 {
+                        c
+                    } else {
+                        -1
+                    };
             }
         }
 
@@ -1615,10 +1689,13 @@ impl App {
             if self.l_down {
                 self.chord_cell = c;
                 self.press_cell = -1;
-            } else if c >= 0 && !self.game.over && self.game.open[c as usize] == 0 
-                && self.game.cycle_flag(c as usize) {
-                    self.flash_face();
-                }
+            } else if c >= 0
+                && !self.game.over
+                && self.game.open[c as usize] == 0
+                && self.game.cycle_flag(c as usize)
+            {
+                self.flash_face();
+            }
         }
         if is_mouse_button_released(MouseButton::Right) {
             self.r_down = false;
@@ -1668,7 +1745,11 @@ impl App {
                     } else {
                         "Mode: Complex"
                     };
-                    display_items.push((Box::leak(mode_label.to_string().into_boxed_str()), *id, *sep));
+                    display_items.push((
+                        Box::leak(mode_label.to_string().into_boxed_str()),
+                        *id,
+                        *sep,
+                    ));
                 } else {
                     display_items.push((*label, *id, *sep));
                 }

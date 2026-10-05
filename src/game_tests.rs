@@ -68,7 +68,12 @@ mod tests {
         // All non-mine cells should have clues 0-8
         for i in 0..g.n {
             if g.mine[i] == 0 {
-                assert!(g.clue[i] >= 0 && g.clue[i] <= 8, "cell {} clue {}", i, g.clue[i]);
+                assert!(
+                    g.clue[i] >= 0 && g.clue[i] <= 8,
+                    "cell {} clue {}",
+                    i,
+                    g.clue[i]
+                );
             } else {
                 assert_eq!(g.clue[i], -1);
             }
@@ -221,7 +226,7 @@ mod tests {
         g.mines = 3;
         g.new_game(1);
         g.start_at(12, 0); // center
-        // Reveal all non-mine cells
+                           // Reveal all non-mine cells
         for i in 0..g.n {
             if g.mine[i] == 0 && g.open[i] == 0 {
                 g.reveal(i, 0);
@@ -255,7 +260,9 @@ mod tests {
         g.mines = 3;
         g.new_game(1);
         g.start_at(12, 0);
-        let cell = (0..g.n).find(|&i| g.open[i] == 0 && g.mine[i] == 0).unwrap();
+        let cell = (0..g.n)
+            .find(|&i| g.open[i] == 0 && g.mine[i] == 0)
+            .unwrap();
         g.set_flag(cell, 1);
         g.reveal(cell, 0);
         assert_eq!(g.open[cell], 0); // still closed
