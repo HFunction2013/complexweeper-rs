@@ -514,7 +514,25 @@ impl App {
         false
     }
 
-    /// Classic minesweeper number colors (1-8).
+    /// Classic mode clue digit -> atlas slot name.
+    /// Atlas `num_X` slots are keyed by D=|S|^2 (Complex mode); perfect-square D
+    /// values contain plain Arabic numerals — e.g. num_9 draws "3", num_16 draws "4".
+    fn classic_clue_sprite(d: i16) -> &'static str {
+        match d {
+            0 => "num_0",
+            1 => "num_1",
+            2 => "num_4",
+            3 => "num_9",
+            4 => "num_16",
+            5 => "num_25",
+            6 => "num_36",
+            7 => "num_49",
+            8 => "num_64",
+            _ => "blank",
+        }
+    }
+
+    /// Classic minesweeper number colors (1-8) — kept as fallback only.
     fn classic_number_color(n: i16) -> Color {
         match n {
             1 => Color::new(0.0, 0.0, 1.0, 1.0),       // blue
@@ -559,17 +577,8 @@ impl App {
                 return;
             }
             if self.game.mode == GameMode::Classic {
-                // Classic: draw blank background + colored number text.
-                self.draw_sprite_sq("blank", x, y, size);
-                if d > 0 {
-                    let color = Self::classic_number_color(d);
-                    let font_size = (size * 0.75) as u16;
-                    let text = d.to_string();
-                    let dims = measure_text(&text, None, font_size, 1.0);
-                    let tx = x + (size - dims.width) / 2.0;
-                    let ty = y + (size + dims.height) / 2.0 - dims.height * 0.15;
-                    draw_text(&text, tx, ty, font_size as f32, color);
-                }
+                // Classic: all digits 0-8 map to atlas sprites via perfect-square D values.
+                self.draw_sprite_sq(Self::classic_clue_sprite(d), x, y, size);
                 return;
             }
             // Complex mode: use number sprite from atlas.
