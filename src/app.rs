@@ -69,7 +69,7 @@ fn value_digits(base: i32, v: Option<i32>) -> i32 {
         None => base,
         Some(x) => {
             if x >= 0 {
-                if x <= pow10(base) - 1 {
+                if x < pow10(base) {
                     base
                 } else {
                     base + 1
@@ -763,7 +763,7 @@ impl App {
     }
 
     fn set_preset(&mut self, idx: i32) {
-        if idx >= 0 && idx < 3 {
+        if (0..3).contains(&idx) {
             self.game.w = PRESETS[idx as usize].w;
             self.game.h = PRESETS[idx as usize].h;
             self.game.mines = PRESETS[idx as usize].mines;
@@ -970,8 +970,8 @@ impl App {
                 if any == 0 {
                     tc = split_evenly(self.game.mines);
                 }
-                for t in 1..5 {
-                    self.custom.t[t] = tc[t] as i32;
+                for (t, tct) in tc.iter().enumerate().skip(1).take(5) {
+                    self.custom.t[t] = *tct as i32;
                 }
                 self.custom.err = "";
                 self.custom.focused_field = 0;
@@ -1042,24 +1042,24 @@ impl App {
             draw_rectangle(fx, y, 70.0, 22.0, if focused { Color::new(0.9, 0.95, 1.0, 1.0) } else { C_WHITE });
             draw_rectangle_lines(fx, y, 70.0, 22.0, 1.0, if focused { Color::new(0.0, 0.3, 0.8, 1.0) } else { C_SHADOW });
             let val = if *idx == 0 { self.custom.h } else { self.custom.w };
-            draw_text(&val.to_string(), fx + 6.0, y + 16.0, 14.0, C_BLACK);
+            draw_text(val.to_string(), fx + 6.0, y + 16.0, 14.0, C_BLACK);
             draw_text(hint, dx + 180.0, y + 16.0, 12.0, C_DARKGRAY);
             y += 30.0;
         }
 
         y += 4.0;
         let type_labels = ["+Real:", "-Real:", "+Imag:", "-Imag:"];
-        for k in 0..4 {
+        for (k, type_label) in type_labels.iter().enumerate() {
             let col = if k % 2 == 0 { 0.0 } else { 160.0 };
             let row = (k / 2) as f32;
             let yy = y + row * 30.0;
             let idx = 2 + k;
-            draw_text(type_labels[k], dx + 14.0 + col, yy + 16.0, 14.0, C_BLACK);
+            draw_text(type_label, dx + 14.0 + col, yy + 16.0, 14.0, C_BLACK);
             let fx = dx + 82.0 + col;
             let focused = self.custom.focused_field == idx;
             draw_rectangle(fx, yy, 62.0, 22.0, if focused { Color::new(0.9, 0.95, 1.0, 1.0) } else { C_WHITE });
             draw_rectangle_lines(fx, yy, 62.0, 22.0, 1.0, if focused { Color::new(0.0, 0.3, 0.8, 1.0) } else { C_SHADOW });
-            draw_text(&self.custom.t[k + 1].to_string(), fx + 6.0, yy + 16.0, 14.0, C_BLACK);
+            draw_text(self.custom.t[k + 1].to_string(), fx + 6.0, yy + 16.0, 14.0, C_BLACK);
         }
         y += 66.0;
 
@@ -1140,11 +1140,11 @@ impl App {
         for t in 1..5 {
             sum += self.custom.t[t];
         }
-        if h < 9 || h > 30 {
+        if !(9..=30).contains(&h) {
             self.custom.err = "Height must be 9 - 30.";
             return false;
         }
-        if w < 9 || w > 40 {
+        if !(9..=40).contains(&w) {
             self.custom.err = "Width must be 9 - 40.";
             return false;
         }
@@ -1414,8 +1414,8 @@ impl App {
                                 sum = 99;
                             }
                             let sp = split_evenly(sum.min(999) as u16);
-                            for t in 1..5 {
-                                self.custom.t[t] = sp[t] as i32;
+                            for (t, value) in sp.iter().enumerate().skip(1).take(4) {
+                                self.custom.t[t] = *value as i32;
                             }
                         }
                         "ok" => {
@@ -1433,7 +1433,7 @@ impl App {
             }
             DialogMode::About => {
                 let lines = Self::about_lines();
-                let line_refs: Vec<&str> = lines.iter().map(|s| *s).collect();
+                let line_refs: Vec<&str> = lines.to_vec();
                 if clicked && self.message_box_hit(mx, my, &line_refs) {
                     self.dialog = DialogMode::None;
                 }
@@ -1505,7 +1505,6 @@ impl App {
                 }
                 self.menu_open = MenuOpen::None;
                 self.menu_hover = -1;
-                return;
             }
         } else {
             // Hover tracking
@@ -1616,11 +1615,10 @@ impl App {
             if self.l_down {
                 self.chord_cell = c;
                 self.press_cell = -1;
-            } else if c >= 0 && !self.game.over && self.game.open[c as usize] == 0 {
-                if self.game.cycle_flag(c as usize) {
+            } else if c >= 0 && !self.game.over && self.game.open[c as usize] == 0 
+                && self.game.cycle_flag(c as usize) {
                     self.flash_face();
                 }
-            }
         }
         if is_mouse_button_released(MouseButton::Right) {
             self.r_down = false;
@@ -1689,7 +1687,7 @@ impl App {
             DialogMode::Custom => self.draw_custom_dialog(),
             DialogMode::About => {
                 let lines = Self::about_lines();
-                let line_refs: Vec<&str> = lines.iter().map(|s| *s).collect();
+                let line_refs: Vec<&str> = lines.to_vec();
                 self.draw_message_box("About Complexweeper", &line_refs);
             }
             DialogMode::Help => {

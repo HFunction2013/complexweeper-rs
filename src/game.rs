@@ -13,8 +13,7 @@ pub const TYPES: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
 
 /// The 24 achievable display values D = |S|^2 in Complex mode.
 pub const ACHIEVABLE: [u16; 24] = [
-    0, 1, 2, 4, 5, 8, 9, 10, 13, 16, 17, 18, 20, 25, 26, 29, 32, 34, 36, 37, 40, 49, 50,
-    64,
+    0, 1, 2, 4, 5, 8, 9, 10, 13, 16, 17, 18, 20, 25, 26, 29, 32, 34, 36, 37, 40, 49, 50, 64,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -162,9 +161,10 @@ impl Default for Game {
 
 impl Game {
     pub fn new(mode: GameMode) -> Self {
-        let mut g = Game::default();
-        g.mode = mode;
-        g
+        Game {
+            mode,
+            ..Default::default()
+        }
     }
 
     pub fn in_bounds(&self, r: i32, c: i32) -> bool {
@@ -280,8 +280,8 @@ impl Game {
 
         let mut pool = [0usize; MAX_CELLS];
         let mut m = 0usize;
-        for i in 0..n {
-            if !is_safe[i] {
+        for (i, &safe) in is_safe[..n].iter().enumerate() {
+            if !safe {
                 pool[m] = i;
                 m += 1;
             }
@@ -304,8 +304,8 @@ impl Game {
 
         if self.mode == GameMode::Classic {
             // Classic: all mines are type 1.
-            for k in 0..count {
-                self.mine[pool[k]] = 1;
+            for &idx in pool.iter().take(count) {
+                self.mine[idx] = 1;
             }
         } else if want > 0 {
             // Complex with exact ratio: build type list, shuffle, place.
@@ -333,8 +333,8 @@ impl Game {
             }
         } else {
             // Complex random types.
-            for k in 0..count {
-                self.mine[pool[k]] = (1 + self.rng.below(4)) as u8;
+            for &idx in pool.iter().take(count) {
+                self.mine[idx] = (1 + self.rng.below(4)) as u8;
             }
         }
         self.mines = count as u16;
@@ -404,8 +404,7 @@ impl Game {
                 let mut buf = [0usize; 8];
                 let k = self.neighbors(i, &mut buf);
                 for &j in &buf[..k] {
-                    if !queued[j] && self.open[j] == 0 && self.mine[j] == 0 && self.flag[j] == 0
-                    {
+                    if !queued[j] && self.open[j] == 0 && self.mine[j] == 0 && self.flag[j] == 0 {
                         queued[j] = true;
                         stack[sp] = j;
                         sp += 1;
@@ -634,10 +633,10 @@ pub fn split_evenly(total: u16) -> [u16; 5] {
     let mut out = [0u16; 5];
     let base = total / 4;
     let mut rest = total - base * 4;
-    for t in 1..5 {
-        out[t] = base;
+    for (_, slot) in out.iter_mut().enumerate().skip(1).take(4) {
+        *slot = base;
         if rest > 0 {
-            out[t] += 1;
+            *slot += 1;
             rest -= 1;
         }
     }
