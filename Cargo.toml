@@ -1,0 +1,18 @@
+[package]
+name = "complexweeper"
+version = "1.0.0"
+edition = "2021"
+description = "Complex Minesweeper — classic mode and complex mode with four mine types"
+license = "GPL-3.0"
+
+[dependencies]
+macroquad = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+directories = "5"
+
+[profile.release]
+opt-level = 3
+lto = true
