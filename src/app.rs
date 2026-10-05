@@ -227,7 +227,12 @@ impl App {
     /// Resize the OS window to exactly fit the current layout (menu + header + board).
     fn resize_window(&self) {
         let l = self.layout();
-        request_new_screen_size(l.client_w, l.client_h);
+        let mut height = l.client_h;
+        #[cfg(target_os = "macos")]
+        {
+            height += 2.0 * l.pad + l.frame;
+        }
+        request_new_screen_size(l.client_w, height);
     }
 
     fn timer_seconds(&self) -> i32 {
