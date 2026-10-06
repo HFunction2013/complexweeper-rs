@@ -1,6 +1,8 @@
 // Core game logic — platform-independent.
-// Supports two modes: Classic (single mine type, 0-8 clues) and
-// Complex (four mine types: +1, -1, +i, -i; clues are |sum|^2).
+// Supports three modes: Classic (single mine type, 0-8 clues),
+// Complex (four mine types: +1, -1, +i, -i; clues are |sum|^2) and
+// Hyperbolic Complex (four mine types: +1, -1, +j, -j with j^2 = +1;
+// clues are the signed form magnitude a^2 - b^2).
 
 pub const MAX_W: usize = 40;
 pub const MAX_H: usize = 30;
@@ -8,7 +10,7 @@ pub const MAX_CELLS: usize = MAX_W * MAX_H;
 pub const MAX_MINES: usize = 999;
 
 /// Four complex mine types: (real, imaginary) contribution.
-/// Index 0 = +1, 1 = -1, 2 = +i, 3 = -i.
+/// Index 0 = +1, 1 = -1, 2 = +i/+j, 3 = -i/-j.
 pub const TYPES: [(i32, i32); 4] = [(1, 0), (-1, 0), (0, 1), (0, -1)];
 
 /// The 24 achievable display values D = |S|^2 in Complex mode.
@@ -16,10 +18,19 @@ pub const ACHIEVABLE: [u16; 24] = [
     0, 1, 2, 4, 5, 8, 9, 10, 13, 16, 17, 18, 20, 25, 26, 29, 32, 34, 36, 37, 40, 49, 50, 64,
 ];
 
+/// The 39 achievable display values D = a^2 - b^2 in Hyperbolic mode
+/// (|a| + |b| <= 8 over an 8-neighborhood). Negative values render as
+/// "radical + i unit" (e.g. -4 -> 2i, -7 -> sqrt(7)i).
+pub const ACHIEVABLE_HYPER: [i16; 39] = [
+    -64, -49, -48, -36, -35, -32, -25, -24, -21, -16, -15, -12, -9, -8, -7, -5, -4, -3, -1, 0, 1,
+    3, 4, 5, 7, 8, 9, 12, 15, 16, 21, 24, 25, 32, 35, 36, 48, 49, 64,
+];
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameMode {
     Classic,
     Complex,
+    Hyper,
 }
 
 #[derive(Debug, Clone)]
@@ -206,6 +217,18 @@ impl Game {
         n
     }
 
+    pub fn neighbor_flag_count(&self, cell: usize) -> usize {
+        let mut buf = [0usize; 8];
+        let k = self.neighbors(cell, &mut buf);
+        let mut n = 0;
+        for &j in &buf[..k] {
+            if self.flag[j] != 0 {
+                n += 1;
+            }
+        }
+        n
+    }
+
     /// Blank cell: no mines in neighborhood. Only blank cells cascade.
     pub fn is_blank(&self, cell: usize) -> bool {
         self.mine[cell] == 0 && self.neighbor_mine_count(cell) == 0
@@ -365,7 +388,12 @@ impl Game {
                     a += t.0;
                     b += t.1;
                 }
-                self.clue[i] = (a * a + b * b) as i16;
+                self.clue[i] = if self.mode == GameMode::Hyper {
+                    // Hyperbolic form magnitude: a^2 - b^2 (can be negative).
+                    (a * a - b * b) as i16
+                } else {
+                    (a * a + b * b) as i16
+                };
             }
         }
     }
@@ -492,6 +520,9 @@ impl Game {
     /// Classic: total flags == total mines in neighborhood.
     /// Complex: total flags == total mines, AND real/imaginary flag counts match
     /// (or are swapped, since the clue is symmetric).
+    /// Hyper: the display value a^2 - b^2 hides the individual signs of a and b
+    /// (swapping a and b would change the sign of D), so the criterion is that
+    /// |a| and |b| each match — i.e. any of the four sign combinations is fine.
     pub fn match_combo_truth(&self, cell: usize) -> bool {
         if self.mode == GameMode::Classic {
             let mut truth = 0u16;
@@ -507,6 +538,16 @@ impl Game {
                 }
             }
             return got == truth;
+        }
+
+        if self.mode == GameMode::Hyper {
+            // Flag count must match mine count first.
+            if self.neighbor_mine_count(cell) != self.neighbor_flag_count(cell) {
+                return false;
+            }
+            let t = self.sums_of(cell, false);
+            let f = self.sums_of(cell, true);
+            return f.0.abs() == t.0.abs() && f.1.abs() == t.1.abs();
         }
 
         let mut truth = [0u16; 4];
@@ -526,6 +567,30 @@ impl Game {
         let gp = got[0] + got[1];
         let gv = got[2] + got[3];
         (gp + gv == p + v) && ((gp == p && gv == v) || (gp == v && gv == p))
+    }
+
+    /// Signed sums of the real and imaginary (i / j) parts of the mines
+    /// (`use_flag == false`) or flags (`use_flag == true`) in the neighborhood.
+    /// Returns (real_sum, imag_sum).
+    fn sums_of(&self, cell: usize, use_flag: bool) -> (i32, i32) {
+        let mut buf = [0usize; 8];
+        let k = self.neighbors(cell, &mut buf);
+        let mut a = 0i32;
+        let mut b = 0i32;
+        for &j in &buf[..k] {
+            let t: u8 = if use_flag {
+                self.flag[j]
+            } else {
+                self.mine[j]
+            };
+            if t == 0 {
+                continue;
+            }
+            let (ra, rb) = TYPES[(t - 1) as usize];
+            a += ra;
+            b += rb;
+        }
+        (a, b)
     }
 
     /// Chord / double-click expand: if criterion passes, reveal unflagged neighbors.

@@ -3,6 +3,7 @@
 
 use crate::assets::Atlas;
 use crate::game::*;
+use crate::sounds::{SoundKind, Sounds};
 use macroquad::color::*;
 use macroquad::input::*;
 use macroquad::math::{Rect, Vec2};
@@ -150,6 +151,11 @@ pub struct App {
     atlas: Atlas,
     texture: Texture2D,
     zoom: f32,
+    // sound
+    sounds: Option<Sounds>,
+    sound_on: bool,
+    tick_second: i32,
+    over_sound_done: bool,
     // mouse / interaction state
     face_down: bool,
     face_armed: bool,
@@ -168,6 +174,7 @@ pub struct App {
     // best scores [beginner, intermediate, expert] for each mode
     best_classic: [i32; 3],
     best_complex: [i32; 3],
+    best_hyper: [i32; 3],
     // window size
     win_w: f32,
     win_h: f32,
@@ -176,7 +183,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(atlas: Atlas) -> Self {
+    pub fn new(atlas: Atlas, sounds: Option<Sounds>) -> Self {
         let texture = Texture2D::from_rgba8(atlas.width as u16, atlas.height as u16, &atlas.pixels);
         // Default to Expert preset, Complex mode.
         let mut game = Game::new(GameMode::Complex);
@@ -190,6 +197,10 @@ impl App {
             atlas,
             texture,
             zoom: 2.0,
+            sounds,
+            sound_on: true,
+            tick_second: -1,
+            over_sound_done: false,
             face_down: false,
             face_armed: false,
             face_flash_until: 0,
@@ -204,6 +215,7 @@ impl App {
             menu_hover: -1,
             best_classic: [0; 3],
             best_complex: [0; 3],
+            best_hyper: [0; 3],
             win_w: 800.0,
             win_h: 600.0,
             new_record: false,
@@ -363,7 +375,17 @@ impl App {
         self.draw_sprite(name, x, y, size, size);
     }
 
-    fn flag_sprite(t: u8) -> &'static str {
+    /// Hyperbolic mode uses dedicated sprites for the j mine types (3, 4);
+    /// real mines look the same in both modes.
+    fn flag_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "flag_1",
+                2 => "flag_2",
+                3 => "hflag_3",
+                _ => "hflag_4",
+            };
+        }
         match t {
             1 => "flag_1",
             2 => "flag_2",
@@ -371,7 +393,15 @@ impl App {
             _ => "flag_4",
         }
     }
-    fn mine_sprite(t: u8) -> &'static str {
+    fn mine_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "mine_1",
+                2 => "mine_2",
+                3 => "hmine_3",
+                _ => "hmine_4",
+            };
+        }
         match t {
             1 => "mine_1",
             2 => "mine_2",
@@ -379,7 +409,15 @@ impl App {
             _ => "mine_4",
         }
     }
-    fn boom_sprite(t: u8) -> &'static str {
+    fn boom_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "boom_1",
+                2 => "boom_2",
+                3 => "hboom_3",
+                _ => "hboom_4",
+            };
+        }
         match t {
             1 => "boom_1",
             2 => "boom_2",
@@ -387,13 +425,90 @@ impl App {
             _ => "boom_4",
         }
     }
-    fn wrong_sprite(t: u8) -> &'static str {
+    fn wrong_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "wrong_1",
+                2 => "wrong_2",
+                3 => "hwrong_3",
+                _ => "hwrong_4",
+            };
+        }
         match t {
             1 => "wrong_1",
             2 => "wrong_2",
             3 => "wrong_3",
             _ => "wrong_4",
         }
+    }
+    fn right_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "right_1",
+                2 => "right_2",
+                3 => "hright_3",
+                _ => "hright_4",
+            };
+        }
+        match t {
+            1 => "right_1",
+            2 => "right_2",
+            3 => "right_3",
+            _ => "right_4",
+        }
+    }
+    fn rightflag_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "rightflag_1",
+                2 => "rightflag_2",
+                3 => "hrightflag_3",
+                _ => "hrightflag_4",
+            };
+        }
+        match t {
+            1 => "rightflag_1",
+            2 => "rightflag_2",
+            3 => "rightflag_3",
+            _ => "rightflag_4",
+        }
+    }
+    fn wrongflag_sprite(&self, t: u8) -> &'static str {
+        if self.game.mode == GameMode::Hyper {
+            return match t {
+                1 => "wrongflag_1",
+                2 => "wrongflag_2",
+                3 => "hwrongflag_3",
+                _ => "hwrongflag_4",
+            };
+        }
+        match t {
+            1 => "wrongflag_1",
+            2 => "wrongflag_2",
+            3 => "wrongflag_3",
+            _ => "wrongflag_4",
+        }
+    }
+
+    /// Sprite name for a clue value: Complex mode keys on D = a^2 + b^2,
+    /// Hyperbolic mode on D = a^2 - b^2 (negative values render as
+    /// "radical + i unit", e.g. hnum_4_i for -4).
+    fn clue_sprite(&self, d: i16) -> Option<String> {
+        if self.game.mode == GameMode::Hyper {
+            if d == 0 {
+                return Some("num_0".to_string());
+            }
+            if d > 0 {
+                if let Some(n) = self.atlas.num_sprite(d) {
+                    return Some(n.to_string());
+                }
+                let name = format!("hnum_{}", d);
+                return self.atlas.slot(&name).map(|_| name);
+            }
+            let name = format!("hnum_{}_i", -d);
+            return self.atlas.slot(&name).map(|_| name);
+        }
+        self.atlas.num_sprite(d).map(|s| s.to_string())
     }
 
     fn face_sprite(&self) -> &'static str {
@@ -559,9 +674,9 @@ impl App {
         if self.game.open[i] != 0 {
             if self.game.mine[i] != 0 {
                 let sprite = if self.game.boom == i as i32 {
-                    Self::boom_sprite(self.game.mine[i])
+                    self.boom_sprite(self.game.mine[i])
                 } else {
-                    Self::mine_sprite(self.game.mine[i])
+                    self.mine_sprite(self.game.mine[i])
                 };
                 self.draw_sprite_sq(sprite, x, y, size);
                 return;
@@ -576,26 +691,47 @@ impl App {
                 self.draw_sprite_sq(Self::classic_clue_sprite(d), x, y, size);
                 return;
             }
-            // Complex mode: use number sprite from atlas.
-            if let Some(name) = self.atlas.num_sprite(d) {
-                self.draw_sprite_sq(name, x, y, size);
+            // Complex / Hyperbolic: use the number sprite from the atlas.
+            if let Some(name) = self.clue_sprite(d) {
+                self.draw_sprite_sq(&name, x, y, size);
             } else {
                 self.draw_sprite_sq("blank", x, y, size);
             }
             return;
         }
         if self.game.flag[i] != 0 {
-            let right = self.game.mine[i] == self.game.flag[i];
-            let sprite = if revealed && !right {
-                Self::wrong_sprite(self.game.flag[i])
-            } else {
-                Self::flag_sprite(self.game.flag[i])
-            };
-            self.draw_sprite_sq(sprite, x, y, size);
+            let t = self.game.mine[i]; // 0 = this cell is not actually a mine
+            let f = self.game.flag[i];
+            if revealed {
+                // Loss review: show what the player got right and wrong.
+                if t == 0 {
+                    self.draw_sprite_sq("wrongblank", x, y, size);
+                } else if f == t {
+                    self.draw_sprite_sq(self.right_sprite(t), x, y, size);
+                } else {
+                    self.draw_sprite_sq(self.wrong_sprite(t), x, y, size);
+                }
+                return;
+            }
+            if self.game.win {
+                // Win review: every remaining flag sits on a mine.
+                if t != 0 && f == t {
+                    self.draw_sprite_sq(self.rightflag_sprite(t), x, y, size);
+                } else {
+                    self.draw_sprite_sq(
+                        self.wrongflag_sprite(if t != 0 { t } else { f }),
+                        x,
+                        y,
+                        size,
+                    );
+                }
+                return;
+            }
+            self.draw_sprite_sq(self.flag_sprite(f), x, y, size);
             return;
         }
         if revealed && self.game.mine[i] != 0 {
-            self.draw_sprite_sq(Self::mine_sprite(self.game.mine[i]), x, y, size);
+            self.draw_sprite_sq(self.mine_sprite(self.game.mine[i]), x, y, size);
             return;
         }
         self.draw_sprite_sq("closed", x, y, size);
@@ -634,14 +770,15 @@ impl App {
         let col_x = self.counters_x(l);
         let mut cy = self.counters_y(l);
 
-        if self.game.mode == GameMode::Complex {
+        if self.game.mode != GameMode::Classic {
+            // Four counters: +Real, -Real, +Imag/+j, -Imag/-j (Complex and Hyper).
             for t in 1..5 {
                 let val = self.counter_shown(t);
                 let imag = Self::counter_imag(t);
                 let cw2 = counter_width(l.z, panel_cells(imag, val));
                 self.draw_3d(col_x, cy, cw2, 26.0 * l.z, 1.0 * l.z, false);
                 self.draw_sprite_sq(
-                    Self::flag_sprite(t as u8),
+                    self.flag_sprite(t as u8),
                     col_x + l.z + l.z,
                     cy + (26.0 * l.z - 16.0 * l.z) / 2.0,
                     16.0 * l.z,
@@ -650,7 +787,13 @@ impl App {
                 let led_y = cy + (26.0 * l.z - 23.0 * l.z) / 2.0;
                 let vw = self.draw_led(led_x, led_y, val, panel_value_digits(imag, val), l.z);
                 if imag {
-                    let sprite = if val.is_none() { "led_blank" } else { "led_i" };
+                    let sprite = if val.is_none() {
+                        "led_blank"
+                    } else if self.game.mode == GameMode::Hyper {
+                        "led_j"
+                    } else {
+                        "led_i"
+                    };
                     self.draw_sprite(sprite, led_x + vw, led_y, 13.0 * l.z, 23.0 * l.z);
                 }
                 cy += 26.0 * l.z + 2.0 * l.z;
@@ -754,6 +897,8 @@ impl App {
         self.face_armed = false;
         self.face_flash_until = 0;
         self.new_record = false;
+        self.over_sound_done = false;
+        self.tick_second = -1;
         self.resize_window();
     }
 
@@ -771,6 +916,11 @@ impl App {
         let m0 = self.game.moves;
         self.game.try_expand(c);
         self.after_game_action();
+        if self.game.over && !self.game.win {
+            // Boom: play the blast sound of the mine that was hit.
+            let b = self.game.boom.max(0) as usize;
+            self.play_sound(SoundKind::Mine(self.game.mine[b]));
+        }
         if self.game.moves != m0 && !self.game.over {
             self.flash_face();
         }
@@ -782,6 +932,13 @@ impl App {
         }
         if self.game.t0 != 0 {
             self.game.elapsed_ms = (self.now_ms() - self.game.t0 as u64) as u32;
+        }
+        // End-of-game sound plays exactly once (a mine blast already played its own).
+        if !self.over_sound_done {
+            self.over_sound_done = true;
+            if self.game.win {
+                self.play_sound(SoundKind::Win);
+            }
         }
         if !self.game.win {
             return;
@@ -804,6 +961,16 @@ impl App {
         self.save_scores();
         self.new_record = true;
         self.dialog = DialogMode::BestScores;
+    }
+
+    /// Play a sound effect unless sound is muted or audio is unavailable.
+    fn play_sound(&self, kind: SoundKind) {
+        if !self.sound_on {
+            return;
+        }
+        if let Some(s) = &self.sounds {
+            s.play(kind);
+        }
     }
 
     fn preset_index(&self) -> i32 {
@@ -836,6 +1003,14 @@ impl App {
                             self.best_complex[i] = val.as_i64().unwrap_or(0) as i32;
                         }
                     }
+                    if let Some(c) = v.get("hyper").and_then(|x| x.as_array()) {
+                        for (i, val) in c.iter().enumerate().take(3) {
+                            self.best_hyper[i] = val.as_i64().unwrap_or(0) as i32;
+                        }
+                    }
+                    if let Some(s) = v.get("sound_on").and_then(|x| x.as_bool()) {
+                        self.sound_on = s;
+                    }
                 }
             }
         }
@@ -849,6 +1024,8 @@ impl App {
             let v = serde_json::json!({
                 "classic": self.best_classic,
                 "complex": self.best_complex,
+                "hyper": self.best_hyper,
+                "sound_on": self.sound_on,
             });
             let _ = std::fs::write(&path, serde_json::to_string_pretty(&v).unwrap());
         }
@@ -869,6 +1046,7 @@ impl App {
             ("Zoom 100%", 110, false),
             ("Zoom 200%", 111, false),
             ("Zoom 300%", 112, true),
+            ("Sound: On", 160, true),
             ("Exit", 105, false),
         ]
     }
@@ -990,17 +1168,22 @@ impl App {
                 self.resize_window();
             }
             150 => {
-                // Toggle mode
-                self.game.mode = if self.game.mode == GameMode::Classic {
-                    GameMode::Complex
-                } else {
-                    GameMode::Classic
+                // Cycle game mode: Classic -> Complex -> Hyperbolic Complex.
+                self.game.mode = match self.game.mode {
+                    GameMode::Classic => GameMode::Complex,
+                    GameMode::Complex => GameMode::Hyper,
+                    GameMode::Hyper => GameMode::Classic,
                 };
-                // Reset type_count for classic mode
+                // Reset type_count for classic mode.
                 if self.game.mode == GameMode::Classic {
                     self.game.type_count = [0; 5];
                 }
                 self.start_new_game(None);
+            }
+            160 => {
+                // Toggle sound effects; persist the preference.
+                self.sound_on = !self.sound_on;
+                self.save_scores();
             }
             200 => self.dialog = DialogMode::Help,
             202 => self.dialog = DialogMode::About,
@@ -1074,7 +1257,11 @@ impl App {
         }
 
         y += 4.0;
-        let type_labels = ["+Real:", "-Real:", "+Imag:", "-Imag:"];
+        let type_labels = if self.game.mode == GameMode::Hyper {
+            ["+Real:", "-Real:", "+j:", "-j:"]
+        } else {
+            ["+Real:", "-Real:", "+Imag:", "-Imag:"]
+        };
         for (k, type_label) in type_labels.iter().enumerate() {
             let col = if k % 2 == 0 { 0.0 } else { 160.0 };
             let row = (k / 2) as f32;
@@ -1220,7 +1407,9 @@ impl App {
         self.game.w = w as u16;
         self.game.h = h as u16;
         self.game.mines = sum as u16;
-        if self.game.mode == GameMode::Complex {
+        if self.game.mode == GameMode::Classic {
+            self.game.type_count = [0; 5];
+        } else {
             self.game.type_count = [
                 0,
                 self.custom.t[1] as u16,
@@ -1228,8 +1417,6 @@ impl App {
                 self.custom.t[3] as u16,
                 self.custom.t[4] as u16,
             ];
-        } else {
-            self.game.type_count = [0; 5];
         }
         true
     }
@@ -1304,6 +1491,10 @@ impl App {
             "Based on Microsoft Minesweeper",
             "(original authors: Robert Donner, Curt Johnson)",
             "",
+            "Modes: Classic, Complex (+1/-1/+i/-i) and",
+            "Hyperbolic Complex (+1/-1/+j/-j, j^2 = +1).",
+            "Sound effects with an on/off toggle.",
+            "",
             "Image assets: Microsoft (original minesweeper assets);",
             "Qingyue Xiao (new assets).",
             "Code licensed under GPL-3.0.",
@@ -1323,6 +1514,19 @@ impl App {
                 "".to_string(),
                 "Numbers show how many mines are adjacent.".to_string(),
                 "Reveal all non-mine cells to win.".to_string(),
+            ]
+        } else if self.game.mode == GameMode::Hyper {
+            vec![
+                "Four mine types: +Real, -Real, +j, -j (j^2 = +1).".to_string(),
+                "Left-click to reveal a cell.".to_string(),
+                "Right-click cycles flags: +R, -R, +j, -j.".to_string(),
+                "Middle-click or both buttons to chord.".to_string(),
+                "F2 to start a new game.".to_string(),
+                "".to_string(),
+                "Numbers show the hyperbolic form magnitude".to_string(),
+                "a^2 - b^2; negative values carry an i unit.".to_string(),
+                "Chord when flag count matches and |a|, |b|".to_string(),
+                "each match (any sign combination).".to_string(),
             ]
         } else {
             vec![
@@ -1345,15 +1549,15 @@ impl App {
             lines.push("*** New Record! ***".to_string());
             lines.push("".to_string());
         }
-        let scores = if self.game.mode == GameMode::Classic {
-            &self.best_classic
-        } else {
-            &self.best_complex
+        let scores = match self.game.mode {
+            GameMode::Classic => &self.best_classic,
+            GameMode::Complex => &self.best_complex,
+            GameMode::Hyper => &self.best_hyper,
         };
-        let mode_name = if self.game.mode == GameMode::Classic {
-            "Classic"
-        } else {
-            "Complex"
+        let mode_name = match self.game.mode {
+            GameMode::Classic => "Classic",
+            GameMode::Complex => "Complex",
+            GameMode::Hyper => "Hyperbolic Complex",
         };
         lines.push(format!("Best Times ({})", mode_name));
         lines.push("".to_string());
@@ -1438,6 +1642,15 @@ impl App {
         // Update elapsed time
         if self.game.started && !self.game.over && self.game.t0 != 0 {
             self.game.elapsed_ms = (self.now_ms() - self.game.t0 as u64) as u32;
+        }
+
+        // One tick per whole second while the clock is running (like the original).
+        if self.game.started && !self.game.over {
+            let sec = self.timer_seconds();
+            if sec >= 1 && sec != self.tick_second {
+                self.tick_second = sec;
+                self.play_sound(SoundKind::Tick);
+            }
         }
 
         // Handle dialog input first (modal)
@@ -1676,6 +1889,10 @@ impl App {
                     self.game.reveal(c, self.now_ms() as u32);
                     self.after_game_action();
                 }
+                if self.game.over && !self.game.win {
+                    let b = self.game.boom.max(0) as usize;
+                    self.play_sound(SoundKind::Mine(self.game.mine[b]));
+                }
                 if covered && !self.game.over {
                     self.flash_face();
                 }
@@ -1740,16 +1957,19 @@ impl App {
             let mut display_items: Vec<(&str, i32, bool)> = Vec::new();
             for (label, id, sep) in &items {
                 if *id == 150 {
-                    let mode_label = if self.game.mode == GameMode::Classic {
-                        "Mode: Classic"
-                    } else {
-                        "Mode: Complex"
+                    let mode_label = match self.game.mode {
+                        GameMode::Classic => "Mode: Classic",
+                        GameMode::Complex => "Mode: Complex",
+                        GameMode::Hyper => "Mode: Hyperbolic Complex",
                     };
                     display_items.push((
                         Box::leak(mode_label.to_string().into_boxed_str()),
                         *id,
                         *sep,
                     ));
+                } else if *id == 160 {
+                    let sound_label = if self.sound_on { "Sound: On" } else { "Sound: Off" };
+                    display_items.push((sound_label, *id, *sep));
                 } else {
                     display_items.push((*label, *id, *sep));
                 }

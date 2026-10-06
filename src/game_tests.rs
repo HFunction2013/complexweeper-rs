@@ -281,4 +281,131 @@ mod tests {
         let k = g.neighbors(40, &mut buf);
         assert_eq!(k, 8); // center has 8 neighbors
     }
+
+    // ------------------------------------------------------------------ Hyperbolic mode
+
+    #[test]
+    fn test_hyper_achievable_values() {
+        // Every distinct a^2 - b^2 with |a| + |b| <= 8 must be in ACHIEVABLE_HYPER,
+        // and nothing else. This mirrors the original's selftest enumeration.
+        let mut seen = std::collections::BTreeSet::new();
+        for a in 0..=8i16 {
+            for b in 0..=(8 - a) {
+                seen.insert(a * a - b * b);
+            }
+        }
+        let mut want: Vec<i16> = seen.into_iter().collect();
+        want.sort_unstable();
+        assert_eq!(want.len(), ACHIEVABLE_HYPER.len());
+        for (i, &v) in want.iter().enumerate() {
+            assert_eq!(v, ACHIEVABLE_HYPER[i], "mismatch at index {}", i);
+        }
+    }
+
+    #[test]
+    fn test_hyper_clue_achievable() {
+        let mut g = Game::new(GameMode::Hyper);
+        g.w = 16;
+        g.h = 16;
+        g.mines = 40;
+        g.new_game(1);
+        g.start_at(136, 0);
+        for i in 0..g.n {
+            if g.mine[i] == 0 && g.clue[i] >= 0 {
+                assert!(
+                    ACHIEVABLE_HYPER.contains(&g.clue[i]),
+                    "cell {} has non-achievable clue {}",
+                    i,
+                    g.clue[i]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_hyper_clue_formula() {
+        // Hand-build a board: mines at fixed cells around cell 0's neighborhood.
+        // 3x3 layout: cell 0 is a corner; its neighbors are 1, 3, 4.
+        let mut g = Game::new(GameMode::Hyper);
+        g.w = 3;
+        g.h = 3;
+        g.mines = 4;
+        g.new_game(1);
+        // Place: +1 (type 1) at 1, +j (type 3) at 3, -j (type 4) at 4, -1 (type 2) at 5.
+        g.mine[1] = 1;
+        g.mine[3] = 3;
+        g.mine[4] = 4;
+        g.mine[5] = 2;
+        g.compute_clues();
+        // Around cell 0: neighbors 1, 3, 4 -> a = 1, b = 0 -> D = 1.
+        assert_eq!(g.clue[0], 1);
+        // Around cell 2: neighbors 1, 4, 5 -> a = 0, b = -1 -> D = -1.
+        assert_eq!(g.clue[2], -1);
+        // Around cell 6: neighbors 3, 4 -> a = 0, b = 0 -> D = 0.
+        assert_eq!(g.clue[6], 0);
+        // Around cell 7: neighbors 3, 4, 5 -> a = -1, b = 0 -> D = 1.
+        assert_eq!(g.clue[7], 1);
+    }
+
+    #[test]
+    fn test_hyper_flag_cycle() {
+        let mut g = Game::new(GameMode::Hyper);
+        g.w = 5;
+        g.h = 5;
+        g.mines = 3;
+        g.new_game(1);
+        g.start_at(12, 0);
+        let cell = (0..g.n).find(|&i| g.open[i] == 0).unwrap();
+        assert_eq!(g.flag[cell], 0);
+        for expected in [1u8, 2, 3, 4, 0] {
+            g.cycle_flag(cell);
+            assert_eq!(g.flag[cell], expected);
+        }
+    }
+
+    #[test]
+    fn test_hyper_chord_strict_judge() {
+        // The hyper criterion requires |a| and |b| to match separately, so the
+        // four sign combinations are acceptable but a real/imag swap is not.
+        let mut g = Game::new(GameMode::Hyper);
+        g.w = 3;
+        g.h = 3;
+        g.mines = 4;
+        g.new_game(1);
+        g.open[0] = 1; // chord target; neighbors of corner cell 0 are 1, 3, 4
+        // Mines: +1 at 1, +1 at 3 (a = 2, b = 0).
+        g.mine[1] = 1;
+        g.mine[3] = 1;
+        // Flags: -1, -1 (a = -2, b = 0) -> |a| matches, should pass.
+        g.flag[1] = 2;
+        g.flag[3] = 2;
+        assert!(g.match_combo_truth(0));
+        // Flags: +j, +j (a = 0, b = 2) -> swapped, should fail.
+        g.flag[1] = 3;
+        g.flag[3] = 3;
+        assert!(!g.match_combo_truth(0));
+        // Flags: -1, -j (a = -1, b = -1) -> |a| = 1 != 2, should fail.
+        g.flag[1] = 2;
+        g.flag[3] = 4;
+        assert!(!g.match_combo_truth(0));
+        // Wrong count: one flag only.
+        g.flag[1] = 2;
+        g.flag[3] = 0;
+        assert!(!g.match_combo_truth(0));
+    }
+
+    #[test]
+    fn test_hyper_custom_type_ratio() {
+        let mut g = Game::new(GameMode::Hyper);
+        g.w = 10;
+        g.h = 10;
+        g.mines = 20;
+        g.type_count = [0, 5, 5, 5, 5];
+        g.new_game(1);
+        g.start_at(55, 0);
+        assert_eq!(g.type_total[1], 5);
+        assert_eq!(g.type_total[2], 5);
+        assert_eq!(g.type_total[3], 5);
+        assert_eq!(g.type_total[4], 5);
+    }
 }
