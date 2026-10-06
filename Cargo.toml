@@ -2,11 +2,11 @@
 name = "complexweeper"
 version = "1.0.0"
 edition = "2021"
-description = "Complex Minesweeper — classic mode and complex mode with four mine types"
+description = "Complex Minesweeper — classic, complex and hyperbolic complex modes with four mine types, plus sound effects"
 license = "GPL-3.0"
 
 [dependencies]
-macroquad = "0.4"
+macroquad = { version = "0.4", features = ["audio"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

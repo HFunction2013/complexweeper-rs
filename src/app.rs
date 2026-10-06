@@ -3,6 +3,7 @@
 
 use crate::assets::Atlas;
 use crate::game::*;
+use crate::sounds::{SoundKind, Sounds};
 use macroquad::color::*;
 use macroquad::input::*;
 use macroquad::math::{Rect, Vec2};
@@ -150,6 +151,11 @@ pub struct App {
     atlas: Atlas,
     texture: Texture2D,
     zoom: f32,
+    // sound
+    sounds: Option<Sounds>,
+    sound_on: bool,
+    tick_second: i32,
+    over_sound_done: bool,
     // mouse / interaction state
     face_down: bool,
     face_armed: bool,
@@ -176,7 +182,7 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(atlas: Atlas) -> Self {
+    pub fn new(atlas: Atlas, sounds: Option<Sounds>) -> Self {
         let texture = Texture2D::from_rgba8(atlas.width as u16, atlas.height as u16, &atlas.pixels);
         // Default to Expert preset, Complex mode.
         let mut game = Game::new(GameMode::Complex);
@@ -190,6 +196,10 @@ impl App {
             atlas,
             texture,
             zoom: 2.0,
+            sounds,
+            sound_on: true,
+            tick_second: -1,
+            over_sound_done: false,
             face_down: false,
             face_armed: false,
             face_flash_until: 0,
@@ -754,6 +764,8 @@ impl App {
         self.face_armed = false;
         self.face_flash_until = 0;
         self.new_record = false;
+        self.over_sound_done = false;
+        self.tick_second = -1;
         self.resize_window();
     }
 
@@ -771,6 +783,11 @@ impl App {
         let m0 = self.game.moves;
         self.game.try_expand(c);
         self.after_game_action();
+        if self.game.over && !self.game.win {
+            // Boom: play the blast sound of the mine that was hit.
+            let b = self.game.boom.max(0) as usize;
+            self.play_sound(SoundKind::Mine(self.game.mine[b]));
+        }
         if self.game.moves != m0 && !self.game.over {
             self.flash_face();
         }
@@ -782,6 +799,13 @@ impl App {
         }
         if self.game.t0 != 0 {
             self.game.elapsed_ms = (self.now_ms() - self.game.t0 as u64) as u32;
+        }
+        // End-of-game sound plays exactly once (a mine blast already played its own).
+        if !self.over_sound_done {
+            self.over_sound_done = true;
+            if self.game.win {
+                self.play_sound(SoundKind::Win);
+            }
         }
         if !self.game.win {
             return;
@@ -804,6 +828,16 @@ impl App {
         self.save_scores();
         self.new_record = true;
         self.dialog = DialogMode::BestScores;
+    }
+
+    /// Play a sound effect unless sound is muted or audio is unavailable.
+    fn play_sound(&self, kind: SoundKind) {
+        if !self.sound_on {
+            return;
+        }
+        if let Some(s) = &self.sounds {
+            s.play(kind);
+        }
     }
 
     fn preset_index(&self) -> i32 {
@@ -836,6 +870,9 @@ impl App {
                             self.best_complex[i] = val.as_i64().unwrap_or(0) as i32;
                         }
                     }
+                    if let Some(s) = v.get("sound_on").and_then(|x| x.as_bool()) {
+                        self.sound_on = s;
+                    }
                 }
             }
         }
@@ -849,6 +886,7 @@ impl App {
             let v = serde_json::json!({
                 "classic": self.best_classic,
                 "complex": self.best_complex,
+                "sound_on": self.sound_on,
             });
             let _ = std::fs::write(&path, serde_json::to_string_pretty(&v).unwrap());
         }
@@ -869,6 +907,7 @@ impl App {
             ("Zoom 100%", 110, false),
             ("Zoom 200%", 111, false),
             ("Zoom 300%", 112, true),
+            ("Sound: On", 160, true),
             ("Exit", 105, false),
         ]
     }
@@ -1001,6 +1040,11 @@ impl App {
                     self.game.type_count = [0; 5];
                 }
                 self.start_new_game(None);
+            }
+            160 => {
+                // Toggle sound effects; persist the preference.
+                self.sound_on = !self.sound_on;
+                self.save_scores();
             }
             200 => self.dialog = DialogMode::Help,
             202 => self.dialog = DialogMode::About,
@@ -1440,6 +1484,15 @@ impl App {
             self.game.elapsed_ms = (self.now_ms() - self.game.t0 as u64) as u32;
         }
 
+        // One tick per whole second while the clock is running (like the original).
+        if self.game.started && !self.game.over {
+            let sec = self.timer_seconds();
+            if sec >= 1 && sec != self.tick_second {
+                self.tick_second = sec;
+                self.play_sound(SoundKind::Tick);
+            }
+        }
+
         // Handle dialog input first (modal)
         if self.dialog != DialogMode::None {
             self.handle_dialog_text_input();
@@ -1676,6 +1729,10 @@ impl App {
                     self.game.reveal(c, self.now_ms() as u32);
                     self.after_game_action();
                 }
+                if self.game.over && !self.game.win {
+                    let b = self.game.boom.max(0) as usize;
+                    self.play_sound(SoundKind::Mine(self.game.mine[b]));
+                }
                 if covered && !self.game.over {
                     self.flash_face();
                 }
@@ -1750,6 +1807,9 @@ impl App {
                         *id,
                         *sep,
                     ));
+                } else if *id == 160 {
+                    let sound_label = if self.sound_on { "Sound: On" } else { "Sound: Off" };
+                    display_items.push((sound_label, *id, *sep));
                 } else {
                     display_items.push((*label, *id, *sep));
                 }

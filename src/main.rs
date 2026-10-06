@@ -1,4 +1,5 @@
-// Complexweeper — cross-platform minesweeper with Classic and Complex modes.
+// Complexweeper — cross-platform minesweeper with Classic, Complex and
+// Hyperbolic Complex modes.
 // Entry point: sets up the macroquad window and runs the game loop.
 
 #![allow(dead_code)]
@@ -6,6 +7,7 @@
 mod app;
 mod assets;
 mod game;
+mod sounds;
 
 #[cfg(test)]
 mod game_tests;
@@ -33,7 +35,11 @@ async fn main() {
         }
     };
 
-    let mut app = App::new(atlas);
+    // Audio is optional: if the backend fails to initialize, the game keeps
+    // running silently.
+    let sounds = sounds::Sounds::load().await;
+
+    let mut app = App::new(atlas, sounds);
 
     loop {
         app.update();
