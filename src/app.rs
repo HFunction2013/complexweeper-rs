@@ -123,6 +123,7 @@ struct CustomDialog {
     t: [i32; 5], // index 1..4
     err: &'static str,
     focused_field: usize, // 0=h, 1=w, 2..5 = type counts
+    replacing: bool,      // next digit replaces the field value (like clicking then typing in a native edit box)
 }
 
 impl Default for CustomDialog {
@@ -133,6 +134,7 @@ impl Default for CustomDialog {
             t: [0, 25, 25, 25, 24],
             err: "",
             focused_field: 0,
+            replacing: false,
         }
     }
 }
@@ -1148,6 +1150,7 @@ impl App {
                 }
                 self.custom.err = "";
                 self.custom.focused_field = 0;
+                self.custom.replacing = false;
                 self.dialog = DialogMode::Custom;
             }
             105 => {
@@ -1589,10 +1592,15 @@ impl App {
                 2..=5 => &mut self.custom.t[idx],
                 _ => return,
             };
-            *val /= 10;
+            if self.custom.replacing {
+                // Cancel the pending replacement instead of editing the old value.
+                self.custom.replacing = false;
+            } else {
+                *val /= 10;
+            }
             return;
         }
-        // Tab cycles focus
+        // Tab cycles focus (native edit boxes keep the old text; typing appends)
         if is_key_pressed(KeyCode::Tab) {
             let max_field = if self.game.mode == GameMode::Classic {
                 2
@@ -1600,6 +1608,7 @@ impl App {
                 6
             };
             self.custom.focused_field = (self.custom.focused_field + 1) % max_field;
+            self.custom.replacing = false;
             return;
         }
         // Enter = OK
@@ -1608,10 +1617,12 @@ impl App {
                 self.dialog = DialogMode::None;
                 self.start_new_game(None);
             }
+            self.custom.replacing = false;
             return;
         }
         if is_key_pressed(KeyCode::Escape) {
             self.dialog = DialogMode::None;
+            self.custom.replacing = false;
             return;
         }
         // Digit input
@@ -1625,10 +1636,15 @@ impl App {
                     _ => continue,
                 };
                 let d = ch.to_digit(10).unwrap() as i32;
-                let new_val = *val * 10 + d;
+                let new_val = if self.custom.replacing {
+                    d
+                } else {
+                    *val * 10 + d
+                };
                 if new_val <= 9999 {
                     *val = new_val;
                 }
+                self.custom.replacing = false;
             }
         }
     }
@@ -1681,13 +1697,32 @@ impl App {
             DialogMode::Custom => {
                 if clicked {
                     match self.custom_dialog_hit(mx, my) {
-                        "field_h" => self.custom.focused_field = 0,
-                        "field_w" => self.custom.focused_field = 1,
-                        "field_t1" => self.custom.focused_field = 2,
-                        "field_t2" => self.custom.focused_field = 3,
-                        "field_t3" => self.custom.focused_field = 4,
-                        "field_t4" => self.custom.focused_field = 5,
+                        "field_h" => {
+                            self.custom.focused_field = 0;
+                            self.custom.replacing = true;
+                        }
+                        "field_w" => {
+                            self.custom.focused_field = 1;
+                            self.custom.replacing = true;
+                        }
+                        "field_t1" => {
+                            self.custom.focused_field = 2;
+                            self.custom.replacing = true;
+                        }
+                        "field_t2" => {
+                            self.custom.focused_field = 3;
+                            self.custom.replacing = true;
+                        }
+                        "field_t3" => {
+                            self.custom.focused_field = 4;
+                            self.custom.replacing = true;
+                        }
+                        "field_t4" => {
+                            self.custom.focused_field = 5;
+                            self.custom.replacing = true;
+                        }
                         "split" => {
+                            self.custom.replacing = false;
                             let mut sum = 0i32;
                             for t in 1..5 {
                                 sum += self.custom.t[t];
@@ -1701,6 +1736,7 @@ impl App {
                             }
                         }
                         "ok" => {
+                            self.custom.replacing = false;
                             if self.apply_custom() {
                                 self.dialog = DialogMode::None;
                                 self.start_new_game(None);
