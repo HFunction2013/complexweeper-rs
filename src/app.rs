@@ -1045,9 +1045,7 @@ impl App {
             ("Custom...", 104, true),
             ("Mode: Complex", 150, true),
             ("Best Scores...", 106, true),
-            ("Zoom 100%", 110, false),
             ("Zoom 200%", 111, false),
-            ("Zoom 300%", 112, true),
             ("Sound: On", 160, true),
             ("Exit", 105, false),
         ]
@@ -1158,16 +1156,8 @@ impl App {
                 std::process::exit(0);
             }
             106 => self.dialog = DialogMode::BestScores,
-            110 => {
-                self.zoom = 1.0;
-                self.resize_window();
-            }
             111 => {
                 self.zoom = 2.0;
-                self.resize_window();
-            }
-            112 => {
-                self.zoom = 3.0;
                 self.resize_window();
             }
             150 => {
@@ -1589,7 +1579,8 @@ impl App {
             let val = match idx {
                 0 => &mut self.custom.h,
                 1 => &mut self.custom.w,
-                2..=5 => &mut self.custom.t[idx],
+                // Fields 2..=5 are the four type counts, stored at t[1..=4].
+                2..=5 => &mut self.custom.t[idx - 1],
                 _ => return,
             };
             if self.custom.replacing {
@@ -1632,7 +1623,8 @@ impl App {
                 let val = match idx {
                     0 => &mut self.custom.h,
                     1 => &mut self.custom.w,
-                    2..=5 => &mut self.custom.t[idx],
+                    // Fields 2..=5 are the four type counts, stored at t[1..=4].
+                    2..=5 => &mut self.custom.t[idx - 1],
                     _ => continue,
                 };
                 let d = ch.to_digit(10).unwrap() as i32;
